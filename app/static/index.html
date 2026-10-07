@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SN Content Low — Auto Social Publisher & Scheduler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-icon">⚡</div>
+      <div class="brand-text">
+        <h1>SN Content Low</h1>
+        <span class="subtext">Auto Social Media Publisher • Raspberry Pi 4</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <span class="status-badge" id="sys-status">
+        <span class="dot"></span> Đang chạy (Active)
+      </span>
+      <button class="btn btn-secondary" id="btn-sync-drive">
+        🔄 Đồng bộ Drive
+      </button>
+      <button class="btn btn-primary" id="btn-publish-next">
+        🚀 Đăng ngay bài kế tiếp
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- STATS OVERVIEW -->
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon icon-blue">📁</div>
+        <div class="stat-info">
+          <span class="stat-label">Tổng bài viết</span>
+          <span class="stat-value" id="stat-total">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-orange">⏳</div>
+        <div class="stat-info">
+          <span class="stat-label">Hàng đợi chờ đăng</span>
+          <span class="stat-value" id="stat-pending">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-green">✅</div>
+        <div class="stat-info">
+          <span class="stat-label">Đã xuất bản</span>
+          <span class="stat-value" id="stat-published">0</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-red">⚠️</div>
+        <div class="stat-info">
+          <span class="stat-label">Lỗi / Cần kiểm tra</span>
+          <span class="stat-value" id="stat-failed">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHANNEL CONNECTION BADGES -->
+    <section class="channels-status">
+      <span class="channels-title">Trạng thái kết nối:</span>
+      <div class="channel-pill" id="pill-drive">
+        <span class="channel-dot"></span> Google Drive
+      </div>
+      <div class="channel-pill" id="pill-fb">
+        <span class="channel-dot"></span> Facebook Page
+      </div>
+      <div class="channel-pill" id="pill-ig">
+        <span class="channel-dot"></span> Instagram
+      </div>
+      <div class="channel-pill" id="pill-tiktok">
+        <span class="channel-dot"></span> TikTok
+      </div>
+    </section>
+
+    <!-- NAVIGATION TABS -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" data-tab="tab-queue">📋 Hàng Đợi (Queue)</button>
+      <button class="tab-btn" data-tab="tab-history">📦 Lịch Sử Đã Đăng</button>
+      <button class="tab-btn" data-tab="tab-schedule">⏰ Cài Đặt Lịch Trình</button>
+      <button class="tab-btn" data-tab="tab-accounts">🔑 Kênh & Cấu Hình API</button>
+      <button class="tab-btn" data-tab="tab-logs">📜 Nhật Ký Hoạt Động</button>
+    </div>
+
+    <!-- TAB 1: QUEUE -->
+    <section class="tab-content active" id="tab-queue">
+      <div class="section-title-bar">
+        <h2>Danh Sách Ảnh Chờ Đăng</h2>
+        <span class="hint">Ảnh tự động kéo từ Google Drive vào hàng đợi</span>
+      </div>
+      <div class="queue-grid" id="queue-container">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- TAB 2: HISTORY -->
+    <section class="tab-content" id="tab-history">
+      <div class="section-title-bar">
+        <h2>Lịch Sử Xuất Bản</h2>
+        <span class="hint">Các bài viết đã đăng hoặc gặp sự cố</span>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Ảnh</th>
+              <th>Tên File</th>
+              <th>Nội dung</th>
+              <th>Kênh</th>
+              <th>Trạng thái</th>
+              <th>Thời gian</th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody">
+            <!-- Rendered via JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 3: SCHEDULE -->
+    <section class="tab-content" id="tab-schedule">
+      <div class="settings-card">
+        <h2>⏰ Cài Đặt Lịch Trình Tự Động</h2>
+        <p class="card-desc">Thiết lập tần suất và thời gian scheduler tự động lấy bài và đăng lên các mạng xã hội.</p>
+        
+        <form id="schedule-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Thời gian đăng (Cron Expression):</label>
+              <input type="text" id="cfg-schedule-cron" placeholder="0 9,15,20 * * *" value="0 9,15,20 * * *">
+              <span class="field-hint">Mặc định: 09:00, 15:00 và 20:00 hằng ngày.</span>
+            </div>
+            <div class="form-group">
+              <label>Tần suất quét Google Drive (phút):</label>
+              <input type="number" id="cfg-sync-interval" value="30" min="5" max="1440">
+              <span class="field-hint">Tự động kiểm tra file mới trong Drive sau mỗi X phút.</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Nội dung Caption mặc định & Hashtags:</label>
+            <textarea id="cfg-default-caption" rows="4" placeholder="Nhập caption mẫu..."></textarea>
+            <span class="field-hint">Được áp dụng tự động cho các ảnh mới tải từ Google Drive.</span>
+          </div>
+
+          <div class="form-group">
+            <label>Nền tảng mặc định khi xuất bản:</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="cfg-enable-fb" checked> Facebook Page
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="cfg-enable-ig" checked> Instagram
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="cfg-enable-tiktok"> TikTok (Photo Mode)
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Lưu Cấu Hình Lịch Trình</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 4: ACCOUNTS & APIS -->
+    <section class="tab-content" id="tab-accounts">
+      <div class="settings-card">
+        <h2>🔑 Tích Hợp Kênh & Thông Tin API</h2>
+        <p class="card-desc">Cấu hình kết nối Google Drive, Meta Graph API (Facebook/Instagram) và TikTok.</p>
+
+        <form id="accounts-form">
+          <!-- Google Drive -->
+          <div class="form-section">
+            <div class="section-badge">📁 GOOGLE DRIVE</div>
+            <div class="form-group">
+              <label>Google Drive Folder ID:</label>
+              <input type="text" id="cfg-drive-folder-id" placeholder="vd: 1a2B3c4D5e6F7g8H9i...">
+              <span class="field-hint">Lấy ID từ URL thư mục: drive.google.com/drive/folders/<b>[FOLDER_ID]</b></span>
+            </div>
+          </div>
+
+          <!-- Facebook & Instagram -->
+          <div class="form-section">
+            <div class="section-badge">📘 META (FACEBOOK & INSTAGRAM)</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Facebook Page ID:</label>
+                <input type="text" id="cfg-fb-page-id" placeholder="vd: 1029384756102">
+              </div>
+              <div class="form-group">
+                <label>Instagram Business Account ID:</label>
+                <input type="text" id="cfg-ig-account-id" placeholder="vd: 17841400000000">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Page Access Token (Long-Lived):</label>
+              <input type="password" id="cfg-fb-token" placeholder="EAA...">
+              <span class="field-hint">Token có quyền `pages_manage_posts` và `instagram_content_publish`.</span>
+            </div>
+          </div>
+
+          <!-- TikTok -->
+          <div class="form-section">
+            <div class="section-badge">🎵 TIKTOK DEVELOPER API</div>
+            <div class="form-group">
+              <label>TikTok Access Token:</label>
+              <input type="password" id="cfg-tiktok-token" placeholder="act.exampleToken123...">
+              <span class="field-hint">Cấp quyền qua TikTok for Developers (Content Posting API).</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Lưu Toàn Bộ Cấu Hình Kênh</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 5: LOGS -->
+    <section class="tab-content" id="tab-logs">
+      <div class="settings-card">
+        <div class="section-title-bar">
+          <h2>📜 Nhật Ký Hoạt Động (Scheduler Logs)</h2>
+          <button class="btn btn-sm btn-secondary" id="btn-refresh-logs">Làm mới log</button>
+        </div>
+        <div class="log-terminal" id="log-container">
+          <!-- Logs rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[Unit]
+Description=SN Content Low — Auto Social Publisher
+After=network.target
+
+[Service]
+Type=simple
+User=bang
+WorkingDirectory=/home/bang/project/sn-content-low
+ExecStart=/home/bang/project/sn-content-low/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8082
+Restart=always
+RestartSec=5
+EnvironmentFile=-/home/bang/project/sn-content-low/.env
+
+[Install]
+WantedBy=multi-user.target
