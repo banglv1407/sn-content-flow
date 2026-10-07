@@ -153,6 +153,6 @@ def get_logs(limit: int = 50):
 # Serve Static files (Dashboard)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def serve_dashboard():
     return FileResponse(STATIC_DIR / "index.html")
