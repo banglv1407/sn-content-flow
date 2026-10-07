@@ -11,6 +11,7 @@ from .database import (
     init_db, get_db_connection, get_all_settings, 
     update_settings, get_recent_logs, log_event
 )
+from .services.google_drive import is_drive_configured
 from .scheduler import (
     start_scheduler, sync_drive_job, publish_next_post_job, scheduler
 )
@@ -63,7 +64,7 @@ def get_system_status():
             "facebook": bool(settings.get("fb_page_id") and settings.get("fb_access_token")),
             "instagram": bool(settings.get("ig_account_id") and settings.get("fb_access_token")),
             "tiktok": bool(settings.get("tiktok_access_token")),
-            "google_drive": bool(settings.get("drive_folder_id"))
+            "google_drive": bool(is_drive_configured())
         }
     }
 
