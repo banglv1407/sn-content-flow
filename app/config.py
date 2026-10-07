@@ -7,7 +7,7 @@ load_dotenv(BASE_DIR / ".env")
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8082"))
-SECRET_KEY = os.getenv("SECRET_KEY", "sn-content-low-default-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "sn-content-flow-default-key")
 
 # Database Path
 DB_PATH = BASE_DIR / "data.sqlite3"

@@ -1,4 +1,4 @@
-# ⚡ SN Content Low
+# ⚡ SN Content Flow
 
 **Hệ thống tự động đồng bộ ảnh từ Google Drive và xuất bản đa kênh mạng xã hội (Facebook Page, Instagram Business, TikTok) theo lịch trình tuỳ biến.**
 
@@ -25,7 +25,7 @@
 ## 📁 Cấu Trúc Dự Án
 
 ```
-sn-content-low/
+sn-content-flow/
 ├── app/
 │   ├── config.py           # Đọc biến môi trường & đường dẫn
 │   ├── database.py         # SQLite database (settings, posts, logs)
@@ -50,7 +50,7 @@ sn-content-low/
 
 ### 1. Cài đặt môi trường ảo (Virtualenv)
 ```bash
-cd /home/bang/project/sn-content-low
+cd /home/bang/project/sn-content-flow
 
 # Khởi tạo venv qua uv hoặc python3
 uv venv .venv

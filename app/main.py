@@ -15,7 +15,7 @@ from .scheduler import (
     start_scheduler, sync_drive_job, publish_next_post_job, scheduler
 )
 
-app = FastAPI(title="SN Content Low — Auto Social Publisher")
+app = FastAPI(title="SN Content Flow — Auto Social Publisher")
 
 STATIC_DIR = BASE_DIR / "app" / "static"
 
@@ -32,7 +32,7 @@ class PostUpdate(BaseModel):
 def on_startup():
     init_db()
     start_scheduler()
-    log_event("SN-Content-Low khởi động thành công.", "INFO")
+    log_event("SN-Content-Flow khởi động thành công.", "INFO")
 
 # API Endpoints
 @app.get("/api/status")
