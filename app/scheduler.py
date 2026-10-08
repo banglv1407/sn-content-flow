@@ -106,76 +106,99 @@ def publish_next_post_job():
     log_event(f"Bắt đầu xuất bản bài viết #{post_id} ({file_name}) lên {platforms}...", "INFO")
 
     errors = []
+    success_platforms = []
     settings = get_all_settings()
 
     # 1. Đăng Facebook
     if "facebook" in platforms and settings.get("enable_facebook") == "true":
-        try:
-            fb_page = settings.get("fb_page_id")
-            fb_token = settings.get("fb_access_token")
-            if fb_page and fb_token:
+        fb_page = settings.get("fb_page_id")
+        fb_token = settings.get("fb_access_token")
+        if fb_page and fb_token:
+            try:
                 publish_to_facebook(fb_page, fb_token, target_image, caption)
-            else:
-                errors.append("Facebook chưa nhập Page ID / Access Token")
-        except Exception as e:
-            errors.append(f"Facebook: {str(e)}")
+                success_platforms.append("facebook")
+            except Exception as e:
+                errors.append(f"Facebook: {str(e)}")
+        else:
+            errors.append("Facebook chưa nhập Page ID / Access Token")
 
     # 2. Đăng Instagram
     if "instagram" in platforms and settings.get("enable_instagram") == "true":
-        try:
-            ig_acc = settings.get("ig_account_id")
-            fb_token = settings.get("fb_access_token")
-            if ig_acc and fb_token:
+        ig_acc = settings.get("ig_account_id")
+        fb_token = settings.get("fb_access_token")
+        if ig_acc and fb_token:
+            try:
                 publish_to_instagram(ig_acc, fb_token, img_url, caption)
-            else:
-                errors.append("Instagram chưa nhập Account ID / Token")
-        except Exception as e:
-            errors.append(f"Instagram: {str(e)}")
+                success_platforms.append("instagram")
+            except Exception as e:
+                errors.append(f"Instagram: {str(e)}")
+        else:
+            log_event(f"Bài #{post_id}: Bỏ qua Instagram do chưa cấu hình Instagram Account ID.", "INFO")
 
     # 3. Đăng TikTok
     if "tiktok" in platforms and settings.get("enable_tiktok") == "true":
-        try:
-            tt_token = settings.get("tiktok_access_token")
-            if tt_token:
+        tt_token = settings.get("tiktok_access_token")
+        if tt_token:
+            try:
                 publish_to_tiktok_photo(tt_token, [img_url], caption[:100], caption)
-            else:
-                errors.append("TikTok chưa có Access Token")
-        except Exception as e:
-            errors.append(f"TikTok: {str(e)}")
+                success_platforms.append("tiktok")
+            except Exception as e:
+                errors.append(f"TikTok: {str(e)}")
+        else:
+            log_event(f"Bài #{post_id}: Bỏ qua TikTok do chưa cấu hình Access Token.", "INFO")
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    if errors:
-        err_text = "; ".join(errors)
+    if success_platforms:
+        err_note = "; ".join(errors) if errors else None
+        cursor.execute("""
+        UPDATE posts 
+        SET status = 'published', error_message = ?, published_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+        """, (err_note, post_id))
+        log_event(f"Bài viết #{post_id} ({file_name}) đã xuất bản thành công lên {success_platforms}!", "INFO")
+    else:
+        err_text = "; ".join(errors) if errors else "Không có nền tảng nào được cấu hình hợp lệ để xuất bản"
         cursor.execute("""
         UPDATE posts 
         SET status = 'failed', error_message = ?, published_at = CURRENT_TIMESTAMP 
         WHERE id = ?
         """, (err_text, post_id))
         log_event(f"Bài viết #{post_id} đăng gặp lỗi: {err_text}", "WARN")
-    else:
-        cursor.execute("""
-        UPDATE posts 
-        SET status = 'published', error_message = NULL, published_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
-        """, (post_id,))
-        log_event(f"Bài viết #{post_id} ({file_name}) đã xuất bản thành công!", "INFO")
 
     conn.commit()
     conn.close()
 
-def start_scheduler():
-    """Khởi động BackgroundScheduler"""
-    if not scheduler.running:
-        # Job đồng bộ Google Drive mỗi 30 phút
+def setup_or_reload_jobs():
+    """Khởi tạo hoặc cập nhật lịch trình của các Jobs dựa trên Database Settings"""
+    # 1. Job đồng bộ Google Drive
+    try:
+        sync_interval = int(get_setting("sync_interval_minutes", "30") or 30)
+    except:
+        sync_interval = 30
+        
+    scheduler.add_job(
+        sync_drive_job,
+        trigger=IntervalTrigger(minutes=sync_interval),
+        id="sync_drive_task",
+        replace_existing=True
+    )
+
+    # 2. Job xuất bản tự động theo lịch Cron
+    cron_expr = get_setting("schedule_cron", "0 9,15,20 * * *")
+    try:
+        cron_trigger = CronTrigger.from_crontab(cron_expr)
         scheduler.add_job(
-            sync_drive_job,
-            trigger=IntervalTrigger(minutes=30),
-            id="sync_drive_task",
+            publish_next_post_job,
+            trigger=cron_trigger,
+            id="publish_post_task",
             replace_existing=True
         )
-
-        # Job xuất bản tự động theo lịch (Ví dụ mặc định: mỗi 6 tiếng một bài)
+        job = scheduler.get_job("publish_post_task")
+        next_run = getattr(job, "next_run_time", None)
+        log_event(f"Đã áp dụng lịch Cron: '{cron_expr}'. Lần đăng tiếp theo: {next_run}", "INFO")
+    except Exception as e:
+        log_event(f"Lỗi cú pháp Cron '{cron_expr}' ({str(e)}), dùng mặc định mỗi 6 tiếng.", "WARN")
         scheduler.add_job(
             publish_next_post_job,
             trigger=IntervalTrigger(hours=6),
@@ -183,5 +206,9 @@ def start_scheduler():
             replace_existing=True
         )
 
+def start_scheduler():
+    """Khởi động BackgroundScheduler"""
+    if not scheduler.running:
         scheduler.start()
+        setup_or_reload_jobs()
         log_event("Scheduler đã kích hoạt thành công trên Raspberry Pi.", "INFO")

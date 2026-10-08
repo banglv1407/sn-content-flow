@@ -99,6 +99,10 @@ async function loadStatus() {
     document.getElementById('stat-published').innerText = data.stats.published;
     document.getElementById('stat-failed').innerText = data.stats.failed;
 
+    if (document.getElementById('next-publish-time')) {
+      document.getElementById('next-publish-time').innerText = data.next_publish_time || 'Chưa lên lịch';
+    }
+
     // Badges
     setPill('pill-drive', data.channels.google_drive);
     setPill('pill-fb', data.channels.facebook);

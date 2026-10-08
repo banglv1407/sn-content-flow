@@ -13,7 +13,7 @@ from .database import (
 )
 from .services.google_drive import is_drive_configured
 from .scheduler import (
-    start_scheduler, sync_drive_job, publish_next_post_job, scheduler
+    start_scheduler, sync_drive_job, publish_next_post_job, scheduler, setup_or_reload_jobs
 )
 
 app = FastAPI(title="SN Content Flow — Auto Social Publisher")
@@ -50,9 +50,15 @@ def get_system_status():
 
     settings = get_all_settings()
 
+    job = scheduler.get_job("publish_post_task")
+    next_publish = None
+    if job and job.next_run_time:
+        next_publish = job.next_run_time.strftime("%H:%M:%S %d/%m/%Y")
+
     return {
         "status": "online",
         "scheduler_running": scheduler.running,
+        "next_publish_time": next_publish,
         "stats": {
             "total": total_posts,
             "pending": stats.get("pending", 0),
@@ -75,6 +81,7 @@ def get_settings():
 @app.post("/api/settings")
 def save_settings(data: SettingsUpdate):
     update_settings(data.settings)
+    setup_or_reload_jobs()
     log_event("Cập nhật cài đặt hệ thống thành công.", "INFO")
     return {"success": True, "message": "Đã lưu cài đặt!"}
 
