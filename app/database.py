@@ -5,8 +5,10 @@ from typing import Dict, Any, List, Optional
 from .config import DB_PATH
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 def init_db():
@@ -101,11 +103,14 @@ def update_settings(settings_dict: Dict[str, str]):
     conn.close()
 
 def log_event(message: str, level: str = "INFO"):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO logs (level, message) VALUES (?, ?)", (level, message))
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO logs (level, message) VALUES (?, ?)", (level, message))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[LOG_FALLBACK] [{level}] {message} (Failed to save log to db: {e})")
 
 def get_recent_logs(limit: int = 50) -> List[Dict[str, Any]]:
     conn = get_db_connection()

@@ -65,6 +65,10 @@ def publish_next_post_job():
     """Lấy bài viết tiếp theo trong hàng đợi 'pending' và đăng lên các mạng xã hội"""
     conn = get_db_connection()
     cursor = conn.cursor()
+    # Tự động phục hồi bài viết bị treo trạng thái 'publishing' quá 10 phút
+    cursor.execute("UPDATE posts SET status = 'pending' WHERE status = 'publishing' AND datetime(created_at, '+10 minutes') < datetime('now')")
+    conn.commit()
+
     cursor.execute("""
     SELECT * FROM posts 
     WHERE status = 'pending' 
@@ -110,43 +114,47 @@ def publish_next_post_job():
     success_platforms = []
     settings = get_all_settings()
 
-    # 1. Đăng Facebook
-    if "facebook" in platforms and settings.get("enable_facebook") == "true":
-        fb_page = settings.get("fb_page_id")
-        fb_token = settings.get("fb_access_token")
-        if fb_page and fb_token:
-            try:
-                publish_to_facebook(fb_page, fb_token, target_image, caption)
-                success_platforms.append("facebook")
-            except Exception as e:
-                errors.append(f"Facebook: {str(e)}")
-        else:
-            errors.append("Facebook chưa nhập Page ID / Access Token")
+    try:
+        # 1. Đăng Facebook
+        if "facebook" in platforms and settings.get("enable_facebook") == "true":
+            fb_page = settings.get("fb_page_id")
+            fb_token = settings.get("fb_access_token")
+            if fb_page and fb_token:
+                try:
+                    publish_to_facebook(fb_page, fb_token, target_image, caption)
+                    success_platforms.append("facebook")
+                except Exception as e:
+                    errors.append(f"Facebook: {str(e)}")
+            else:
+                errors.append("Facebook chưa nhập Page ID / Access Token")
 
-    # 2. Đăng Instagram
-    if "instagram" in platforms and settings.get("enable_instagram") == "true":
-        ig_acc = settings.get("ig_account_id")
-        fb_token = settings.get("fb_access_token")
-        if ig_acc and fb_token:
-            try:
-                publish_to_instagram(ig_acc, fb_token, img_url, caption)
-                success_platforms.append("instagram")
-            except Exception as e:
-                errors.append(f"Instagram: {str(e)}")
-        else:
-            log_event(f"Bài #{post_id}: Bỏ qua Instagram do chưa cấu hình Instagram Account ID.", "INFO")
+        # 2. Đăng Instagram
+        if "instagram" in platforms and settings.get("enable_instagram") == "true":
+            ig_acc = settings.get("ig_account_id")
+            fb_token = settings.get("fb_access_token")
+            if ig_acc and fb_token:
+                try:
+                    publish_to_instagram(ig_acc, fb_token, img_url, caption)
+                    success_platforms.append("instagram")
+                except Exception as e:
+                    errors.append(f"Instagram: {str(e)}")
+            else:
+                log_event(f"Bài #{post_id}: Bỏ qua Instagram do chưa cấu hình Instagram Account ID.", "INFO")
 
-    # 3. Đăng TikTok
-    if "tiktok" in platforms and settings.get("enable_tiktok") == "true":
-        tt_token = settings.get("tiktok_access_token")
-        if tt_token:
-            try:
-                publish_to_tiktok_photo(tt_token, [img_url], caption[:100], caption)
-                success_platforms.append("tiktok")
-            except Exception as e:
-                errors.append(f"TikTok: {str(e)}")
-        else:
-            log_event(f"Bài #{post_id}: Bỏ qua TikTok do chưa cấu hình Access Token.", "INFO")
+        # 3. Đăng TikTok
+        if "tiktok" in platforms and settings.get("enable_tiktok") == "true":
+            tt_token = settings.get("tiktok_access_token")
+            if tt_token:
+                try:
+                    publish_to_tiktok_photo(tt_token, [img_url], caption[:100], caption)
+                    success_platforms.append("tiktok")
+                except Exception as e:
+                    errors.append(f"TikTok: {str(e)}")
+            else:
+                log_event(f"Bài #{post_id}: Bỏ qua TikTok do chưa cấu hình Access Token.", "INFO")
+
+    except Exception as exc:
+        errors.append(f"Lỗi ngoại lệ khi xuất bản: {str(exc)}")
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -157,6 +165,8 @@ def publish_next_post_job():
         SET status = 'published', error_message = ?, published_at = CURRENT_TIMESTAMP 
         WHERE id = ?
         """, (err_note, post_id))
+        conn.commit()
+        conn.close()
         log_event(f"Bài viết #{post_id} ({file_name}) đã xuất bản thành công lên {success_platforms}!", "INFO")
     else:
         err_text = "; ".join(errors) if errors else "Không có nền tảng nào được cấu hình hợp lệ để xuất bản"
@@ -165,10 +175,9 @@ def publish_next_post_job():
         SET status = 'failed', error_message = ?, published_at = CURRENT_TIMESTAMP 
         WHERE id = ?
         """, (err_text, post_id))
+        conn.commit()
+        conn.close()
         log_event(f"Bài viết #{post_id} đăng gặp lỗi: {err_text}", "WARN")
-
-    conn.commit()
-    conn.close()
 
 def clean_cron_expression(expr: str) -> str:
     if not expr:
