@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -78,12 +79,29 @@ def publish_next_post_job():
     post_id = post["id"]
     file_name = post["file_name"]
     img_url = post["thumbnail_url"]
+    drive_file_id = post["drive_file_id"]
+    file_path = post["file_path"]
     caption = post["caption"]
     platforms = json.loads(post["platforms"] or "[]")
 
     cursor.execute("UPDATE posts SET status = 'publishing' WHERE id = ?", (post_id,))
     conn.commit()
     conn.close()
+
+    # Tải file ảnh gốc chất lượng cao về local nếu chưa có
+    target_image = img_url
+    if drive_file_id:
+        try:
+            from .services.google_drive import download_file_from_drive
+            dl_path = download_file_from_drive(drive_file_id, file_name)
+            if dl_path and os.path.exists(dl_path):
+                target_image = dl_path
+                conn_u = get_db_connection()
+                conn_u.cursor().execute("UPDATE posts SET file_path = ? WHERE id = ?", (dl_path, post_id))
+                conn_u.commit()
+                conn_u.close()
+        except Exception as e:
+            log_event(f"Không thể tải ảnh gốc #{post_id}, dùng thumbnail: {str(e)}", "WARN")
 
     log_event(f"Bắt đầu xuất bản bài viết #{post_id} ({file_name}) lên {platforms}...", "INFO")
 
@@ -96,7 +114,7 @@ def publish_next_post_job():
             fb_page = settings.get("fb_page_id")
             fb_token = settings.get("fb_access_token")
             if fb_page and fb_token:
-                publish_to_facebook(fb_page, fb_token, img_url, caption)
+                publish_to_facebook(fb_page, fb_token, target_image, caption)
             else:
                 errors.append("Facebook chưa nhập Page ID / Access Token")
         except Exception as e:

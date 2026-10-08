@@ -1,5 +1,6 @@
 import os
 import io
+import re
 from pathlib import Path
 from typing import List, Dict, Any
 from ..config import GOOGLE_CREDENTIALS_PATH, DOWNLOADS_DIR
@@ -8,11 +9,24 @@ from ..database import log_event
 def is_drive_configured() -> bool:
     return os.path.exists(GOOGLE_CREDENTIALS_PATH)
 
+def clean_folder_id(folder_id: str) -> str:
+    if not folder_id:
+        return ""
+    folder_id = folder_id.strip()
+    match = re.search(r'folders/([a-zA-Z0-9_-]+)', folder_id)
+    if match:
+        return match.group(1)
+    match_id = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', folder_id)
+    if match_id:
+        return match_id.group(1)
+    return folder_id
+
 def fetch_files_from_drive(folder_id: str) -> List[Dict[str, Any]]:
     """
     Quét danh sách file ảnh trong folder Google Drive.
     Nếu chưa có credentials.json, trả về danh sách ảnh mẫu để test UI.
     """
+    folder_id = clean_folder_id(folder_id)
     if not is_drive_configured():
         log_event("Google Drive chưa cấu hình credentials.json. Chế độ mô phỏng (Demo Mode).", "WARN")
         return [
