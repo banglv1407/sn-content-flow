@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -169,6 +170,15 @@ def publish_next_post_job():
     conn.commit()
     conn.close()
 
+def clean_cron_expression(expr: str) -> str:
+    if not expr:
+        return "0 9,15,20 * * *"
+    expr = expr.strip()
+    expr = re.sub(r'(\d+)\*', r'\1 *', expr)
+    expr = re.sub(r'\*(\d+)', r'* \1', expr)
+    expr = re.sub(r'\s+', ' ', expr)
+    return expr
+
 def setup_or_reload_jobs():
     """Khởi tạo hoặc cập nhật lịch trình của các Jobs dựa trên Database Settings"""
     # 1. Job đồng bộ Google Drive
@@ -185,7 +195,8 @@ def setup_or_reload_jobs():
     )
 
     # 2. Job xuất bản tự động theo lịch Cron
-    cron_expr = get_setting("schedule_cron", "0 9,15,20 * * *")
+    raw_cron = get_setting("schedule_cron", "0 9,15,20 * * *")
+    cron_expr = clean_cron_expression(raw_cron)
     try:
         cron_trigger = CronTrigger.from_crontab(cron_expr)
         scheduler.add_job(
