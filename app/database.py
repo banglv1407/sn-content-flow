@@ -1,8 +1,15 @@
 import sqlite3
 import json
+import zoneinfo
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from .config import DB_PATH
+
+VN_TZ = zoneinfo.ZoneInfo("Asia/Ho_Chi_Minh")
+
+def get_now_vn_str() -> str:
+    """Trả về thời gian hiện tại theo múi giờ Việt Nam (Asia/Ho_Chi_Minh - UTC+7)"""
+    return datetime.now(VN_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -20,7 +27,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT (datetime('now', '+7 hours'))
     )
     """)
 
@@ -38,7 +45,7 @@ def init_db():
         scheduled_at DATETIME,
         published_at DATETIME,
         error_message TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT (datetime('now', '+7 hours'))
     )
     """)
 
@@ -48,7 +55,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         level TEXT DEFAULT 'INFO',
         message TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT (datetime('now', '+7 hours'))
     )
     """)
 
@@ -93,20 +100,22 @@ def get_all_settings() -> Dict[str, str]:
 def update_settings(settings_dict: Dict[str, str]):
     conn = get_db_connection()
     cursor = conn.cursor()
+    now_vn = get_now_vn_str()
     for k, v in settings_dict.items():
         cursor.execute("""
         INSERT INTO settings (key, value, updated_at) 
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
-        """, (k, str(v)))
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        """, (k, str(v), now_vn))
     conn.commit()
     conn.close()
 
 def log_event(message: str, level: str = "INFO"):
     try:
+        now_vn = get_now_vn_str()
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO logs (level, message) VALUES (?, ?)", (level, message))
+        cursor.execute("INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)", (level, message, now_vn))
         conn.commit()
         conn.close()
     except Exception as e:

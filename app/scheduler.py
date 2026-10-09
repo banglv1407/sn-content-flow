@@ -9,7 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from .database import (
     get_db_connection, get_setting, get_all_settings, 
-    log_event
+    log_event, get_now_vn_str
 )
 from .services.google_drive import fetch_files_from_drive
 from .services.facebook import publish_to_facebook
@@ -39,6 +39,7 @@ def sync_drive_job():
         conn = get_db_connection()
         cursor = conn.cursor()
         new_count = 0
+        now_vn = get_now_vn_str()
 
         for f in files:
             file_id = f.get("id")
@@ -49,9 +50,9 @@ def sync_drive_job():
             cursor.execute("SELECT id FROM posts WHERE drive_file_id = ?", (file_id,))
             if not cursor.fetchone():
                 cursor.execute("""
-                INSERT INTO posts (drive_file_id, file_name, thumbnail_url, caption, platforms, status)
-                VALUES (?, ?, ?, ?, ?, 'pending')
-                """, (file_id, name, thumb, default_caption, platforms_json))
+                INSERT INTO posts (drive_file_id, file_name, thumbnail_url, caption, platforms, status, created_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?)
+                """, (file_id, name, thumb, default_caption, platforms_json, now_vn))
                 new_count += 1
 
         conn.commit()
@@ -66,7 +67,7 @@ def publish_next_post_job():
     conn = get_db_connection()
     cursor = conn.cursor()
     # Tự động phục hồi bài viết bị treo trạng thái 'publishing' quá 10 phút
-    cursor.execute("UPDATE posts SET status = 'pending' WHERE status = 'publishing' AND datetime(created_at, '+10 minutes') < datetime('now')")
+    cursor.execute("UPDATE posts SET status = 'pending' WHERE status = 'publishing' AND datetime(created_at, '+10 minutes') < datetime('now', '+7 hours')")
     conn.commit()
 
     cursor.execute("""
@@ -156,15 +157,16 @@ def publish_next_post_job():
     except Exception as exc:
         errors.append(f"Lỗi ngoại lệ khi xuất bản: {str(exc)}")
 
+    now_vn = get_now_vn_str()
     conn = get_db_connection()
     cursor = conn.cursor()
     if success_platforms:
         err_note = "; ".join(errors) if errors else None
         cursor.execute("""
         UPDATE posts 
-        SET status = 'published', error_message = ?, published_at = CURRENT_TIMESTAMP 
+        SET status = 'published', error_message = ?, published_at = ? 
         WHERE id = ?
-        """, (err_note, post_id))
+        """, (err_note, now_vn, post_id))
         conn.commit()
         conn.close()
         log_event(f"Bài viết #{post_id} ({file_name}) đã xuất bản thành công lên {success_platforms}!", "INFO")
@@ -172,9 +174,9 @@ def publish_next_post_job():
         err_text = "; ".join(errors) if errors else "Không có nền tảng nào được cấu hình hợp lệ để xuất bản"
         cursor.execute("""
         UPDATE posts 
-        SET status = 'failed', error_message = ?, published_at = CURRENT_TIMESTAMP 
+        SET status = 'failed', error_message = ?, published_at = ? 
         WHERE id = ?
-        """, (err_text, post_id))
+        """, (err_text, now_vn, post_id))
         conn.commit()
         conn.close()
         log_event(f"Bài viết #{post_id} đăng gặp lỗi: {err_text}", "WARN")
@@ -216,7 +218,8 @@ def setup_or_reload_jobs():
         )
         job = scheduler.get_job("publish_post_task")
         next_run = getattr(job, "next_run_time", None)
-        log_event(f"Đã áp dụng lịch Cron: '{cron_expr}'. Lần đăng tiếp theo: {next_run}", "INFO")
+        next_run_fmt = next_run.strftime("%H:%M:%S %d/%m/%Y") if next_run else "Chưa xác định"
+        log_event(f"Đã áp dụng lịch Cron: '{cron_expr}'. Lần đăng tiếp theo: {next_run_fmt}", "INFO")
     except Exception as e:
         log_event(f"Lỗi cú pháp Cron '{cron_expr}' ({str(e)}), dùng mặc định mỗi 6 tiếng.", "WARN")
         scheduler.add_job(
