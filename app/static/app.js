@@ -185,13 +185,17 @@ async function loadQueue() {
       return;
     }
 
-    container.innerHTML = posts.map(p => `
-      <div class="queue-card" id="post-card-${p.id}">
+    container.innerHTML = posts.map((p, idx) => `
+      <div class="queue-card ${idx === 0 ? 'next-up' : ''}" id="post-card-${p.id}">
         <div class="queue-img-wrap">
+          ${idx === 0 ? '<span class="badge-next-up">⚡ ĐĂNG KẾ TIẾP</span>' : ''}
           <img src="${p.thumbnail_url || 'https://via.placeholder.com/400x300?text=No+Preview'}" alt="${p.file_name}" loading="lazy">
         </div>
         <div class="queue-card-body">
-          <div class="queue-card-title" title="${p.file_name}">${p.file_name}</div>
+          <div class="queue-card-title" title="${p.file_name}">
+            ${idx === 0 ? '<span style="color:#3fb950; font-weight:800; margin-right:4px;">[#1 Kế Tiếp]</span>' : `<span style="color:#8b949e; margin-right:4px;">[#${idx + 1}]</span>`}
+            ${p.file_name}
+          </div>
           <textarea class="caption-input" id="caption-${p.id}" placeholder="Nhập caption cho bài viết...">${p.caption || ''}</textarea>
           
           <div class="platform-tags">
@@ -199,7 +203,10 @@ async function loadQueue() {
           </div>
 
           <div class="queue-card-actions">
-            <button class="btn btn-sm btn-secondary" onclick="updateCaption(${p.id})">💾 Lưu Caption</button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-sm btn-secondary" onclick="updateCaption(${p.id})">💾 Lưu</button>
+              ${idx > 0 ? `<button class="btn btn-sm btn-secondary" onclick="prioritizePost(${p.id})" title="Đưa bài này lên vị trí đầu tiên để đăng tiếp theo">⬆ Lên đầu</button>` : ''}
+            </div>
             <button class="btn btn-sm btn-danger" onclick="deletePost(${p.id})">🗑 Xóa</button>
           </div>
         </div>
@@ -209,6 +216,21 @@ async function loadQueue() {
     container.innerHTML = `<div style="color:#f85149">Lỗi tải hàng đợi: ${err.message}</div>`;
   }
 }
+
+// Ưu tiên bài viết lên đầu hàng đợi
+window.prioritizePost = async function(id) {
+  try {
+    const res = await fetch(`/api/posts/${id}/prioritize`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      await loadQueue();
+    } else {
+      alert(data.message || 'Không thể thay đổi thứ tự');
+    }
+  } catch (err) {
+    alert('Lỗi: ' + err.message);
+  }
+};
 
 // Update caption
 window.updateCaption = async function(id) {

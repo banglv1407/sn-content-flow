@@ -89,10 +89,12 @@ def save_settings(data: SettingsUpdate):
 def list_posts(status: Optional[str] = None, limit: int = 50):
     conn = get_db_connection()
     cursor = conn.cursor()
-    if status:
+    if status == "pending":
+        cursor.execute("SELECT * FROM posts WHERE status = 'pending' ORDER BY priority DESC, id ASC LIMIT ?", (limit,))
+    elif status:
         cursor.execute("SELECT * FROM posts WHERE status = ? ORDER BY id DESC LIMIT ?", (status, limit))
     else:
-        cursor.execute("SELECT * FROM posts ORDER BY id DESC LIMIT ?", (limit,))
+        cursor.execute("SELECT * FROM posts ORDER BY priority DESC, id DESC LIMIT ?", (limit,))
     rows = cursor.fetchall()
     conn.close()
     
@@ -105,6 +107,20 @@ def list_posts(status: Optional[str] = None, limit: int = 50):
             d["platforms"] = []
         posts.append(d)
     return {"posts": posts}
+
+@app.post("/api/posts/{post_id}/prioritize")
+def prioritize_post(post_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT MAX(priority) as max_p FROM posts WHERE status = 'pending'")
+    row = cursor.fetchone()
+    current_max = row["max_p"] if row and row["max_p"] is not None else 0
+    new_priority = current_max + 1
+    cursor.execute("UPDATE posts SET priority = ? WHERE id = ? AND status = 'pending'", (new_priority, post_id))
+    conn.commit()
+    conn.close()
+    log_event(f"Đã ưu tiên đưa bài viết #{post_id} lên đầu hàng đợi xuất bản.", "INFO")
+    return {"success": True, "message": f"Đã đưa bài #{post_id} lên đầu hàng đợi!"}
 
 @app.patch("/api/posts/{post_id}")
 def edit_post(post_id: int, data: PostUpdate):

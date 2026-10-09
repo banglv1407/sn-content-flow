@@ -295,6 +295,28 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: all 0.25s ease;
+}
+.queue-card.next-up {
+  border-color: #2ea043;
+  box-shadow: 0 0 0 1px #2ea043, 0 8px 24px rgba(46, 160, 67, 0.2);
+}
+.badge-next-up {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: linear-gradient(135deg, #2ea043, #238636);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 .queue-img-wrap {
   position: relative;

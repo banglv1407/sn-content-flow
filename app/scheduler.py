@@ -73,7 +73,8 @@ def publish_next_post_job():
     cursor.execute("""
     SELECT * FROM posts 
     WHERE status = 'pending' 
-    ORDER BY id ASC LIMIT 1
+    ORDER BY priority DESC, id ASC 
+    LIMIT 1
     """)
     post = cursor.fetchone()
 
